@@ -1,5 +1,6 @@
 import pygame
 import copy
+import os
 from pygame.locals import QUIT, MOUSEBUTTONDOWN, MOUSEBUTTONUP
 from .TableroInteractivo import TableroInteractivo
 from .PiezaAnimada import PiezaAnimada
@@ -16,6 +17,9 @@ COLORES_FLECHAS = {
 
 class Juego:
     def __init__(self, minutos=10):
+        # --- INICIALIZACIÓN DE AUDIO --- #
+        if not pygame.mixer.get_init():
+            pygame.mixer.init()
         self.tablero = TableroInteractivo()
         self.partida_activa = True
         self.reloj_fps = pygame.time.Clock()
@@ -38,6 +42,16 @@ class Juego:
         self.dibujando_flecha = False
         self.inicio_flecha = None
         self.color_flecha_actual = COLORES_FLECHAS["1"]
+
+        # --- CARGAR SONIDOS --- #
+        self.ruta_sonidos = os.path.join(os.path.dirname(__file__), "..","assets", "sonidos")
+        try:
+            self.sonido_mover = pygame.mixer.Sound(os.path.join(self.ruta_sonidos, "Movimiento.wav"))
+            self.sonido_captura = pygame.mixer.Sound(os.path.join(self.ruta_sonidos, "Captura.wav"))
+            self.sonido_jaque = pygame.mixer.Sound(os.path.join(self.ruta_sonidos, "Jaque.wav"))
+        except Exception as e:
+            print(f"Advertencia: No se pudieron cargar los sonidos. Error: {e}")
+            self.sonido_mover = self.sonido_captura = self.sonido_jaque = None
 
         self.crear_piezas_iniciales()
         self.guardar_estado()
@@ -95,6 +109,16 @@ class Juego:
             self.piezas.append(PiezaAnimada("peon", "negro", 1, col, tam))
             self.piezas.append(PiezaAnimada("peon", "blanco", 6, col, tam))
             self.piezas.append(PiezaAnimada(nombre, "blanco", 7, col, tam))
+
+    def reproducir_sonido(self, tipo): 
+        if not self.sonido_mover: return
+        
+        if tipo == "Movimiento":
+            self.sonido_mover.play()
+        elif tipo == "Captura":
+            self.sonido_captura.play()
+        elif tipo == "Jaque":
+            self.sonido_jaque.play()
 
     def obtener_nombre_casilla(self, fila, col):
         return f"{'abcdefgh'[col]}{8 - fila}"
@@ -371,14 +395,12 @@ class Juego:
 
                             dest_txt = self.obtener_nombre_casilla(fila, col)
                             if p_dest:
-                                if p_dest.color == "blanco":
-                                    self.capturadas_blancas.append(p_dest)
-                                else:
-                                    self.capturadas_negras.append(p_dest)
+                                if p_dest.color == "blanco": self.capturadas_blancas.append(p_dest)
+                                else: self.capturadas_negras.append(p_dest)
                                 self.piezas.remove(p_dest)
-                                self.historial.append(f"{inicial}x{dest_txt}")
+                                self.reproducir_sonido("Captura") # <--- SONIDO CAPTURA
                             else:
-                                self.historial.append(f"{inicial}{dest_txt}")
+                                self.reproducir_sonido("Movimiento") # <--- SONIDO MOVIMIENTO
 
                             (
                                 self.seleccionada.fila,
@@ -392,6 +414,10 @@ class Juego:
                                 self.esperar_promocion(self.seleccionada)
 
                             self.turno = "negro" if self.turno == "blanco" else "blanco"
+                            # --- DETECTAR JAQUE TRAS EL MOVIMIENTO --- # 
+                            nuevo_rey_enemigo = self.obtener_rey(self.turno)
+                            if nuevo_rey_enemigo and self.esta_atacada(nuevo_rey_enemigo.fila, nuevo_rey_enemigo.col, self.turno):
+                                self.reproducir_sonido("Jaque") # <--- SONIDO JAQUE
                             self.seleccionada = None
                             self.movs_legales = []
                             self.guardar_estado()
