@@ -7,13 +7,13 @@ from tkextrafont import Font
 from modulos.Ajedrez.clases.juego import Juego
 
 # --- IMPORTACIONES DE TUS MÓDULOS ---
-# Ajustado según tu imagen: modulos -> Ajedrez -> clases -> juego.py
+# Ajustado para Ajedrez
 try:
     from modulos.Ajedrez.clases.juego import Juego
 except ImportError:
     print("Error: No se encontró el módulo de Ajedrez.")
 
-# Ajustado según tu imagen: modulos -> juego_de_palabras -> juego_palabras.py
+# Ajustado juego de palabras
 try:
     from modulos.juego_de_palabras.juego_palabras import abrir_juego_palabras
 except ImportError:
@@ -68,6 +68,7 @@ def maximizar_ventana():
 root.after(0, maximizar_ventana)
 root.configure(fg_color=COLORS["bg"])
 
+#Progreso inicial del usuario en cada materia (puedes ajustar estos valores para probar la vista de progreso y logros)
 ESTADO_USUARIO = {
     "materias": {
         "Lectura y Escritura": 0.0,
@@ -159,6 +160,7 @@ def vista_temas():
     contenedor_colores = ctk.CTkFrame(principal, fg_color="transparent")
     contenedor_colores.pack(expand=True)
 
+# Paleta de colores para los temas 
     paletas = [
         ("Azul Clásico", "#4DA3FF", "#3C5179"),
         ("Verde Lima", "#A2D149", "#7BA330"),
@@ -193,7 +195,7 @@ def vista_temas():
             col = 0
             fila += 1
 
-
+# Sistema de propreso 
 def vista_progreso():
     limpiar_panel()
     ctk.CTkLabel(
