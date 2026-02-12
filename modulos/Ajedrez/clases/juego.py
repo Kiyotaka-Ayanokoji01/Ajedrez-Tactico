@@ -40,7 +40,7 @@ class Juego:
         self.reloj_iniciado = False
         self.ultima_actualizacion_tiempo = pygame.time.get_ticks()
 
-        self.historial = []
+        self.historial = []  # Almacena todos los movimientos (pueden ser 200+)
         self.capturadas_blancas = []
         self.capturadas_negras = []
 
@@ -75,23 +75,31 @@ class Juego:
         pygame.display.set_caption(f"Ajedrez - Turno: {self.turno.upper()}")
 
     def obtener_notacion_corta(self, f_orig, c_orig, f_dest, c_dest, pieza, es_captura):
-        """Convierte a notación corta en español: Inicial + destino"""
+        """Convierte a notación corta en español: Inicial + destino (ej: Ce4, Dxf7)"""
         letras = "abcdefgh"
-        # Invertimos la fila para que 7 sea 1 y 0 sea 8
-        orig = f"{letras[c_orig]}{8-f_orig}"
-        dest = f"{letras[c_dest]}{8-f_dest}"
-        prefijo = ""
-        if pieza.nombre == "caballo":
-            prefijo = "C"
-        elif pieza.nombre == "alfil":
-            prefijo = "A"
-        elif pieza.nombre == "torre":
-            prefijo = "T"
-        elif pieza.nombre == "dama":
-            prefijo = "D"
-        elif pieza.nombre == "rey":
-            prefijo = "R"
-        return f"{prefijo}{orig}{dest}"
+        iniciales = {
+            "rey": "R",
+            "dama": "D",
+            "torre": "T",
+            "alfil": "A",
+            "caballo": "C",
+            "peon": "",
+        }
+
+        prefijo = iniciales.get(pieza.nombre, "")
+
+        # Si es captura de peón, la notación empieza con la columna de origen (ej: exd5)
+        if pieza.nombre == "peon" and es_captura:
+            prefijo = letras[c_orig]
+
+        conector = "x" if es_captura else ""
+        destino = f"{letras[c_dest]}{8-f_dest}"
+
+        # Caso especial: Enroques (opcional, pero mejora la notación)
+        if pieza.nombre == "rey" and abs(c_dest - c_orig) == 2:
+            return "O-O" if c_dest > c_orig else "O-O-O"
+
+        return f"{prefijo}{conector}{destino}"
 
     def guardar_estado(self):
         estado = {
@@ -246,7 +254,6 @@ class Juego:
         )
         if p_dest and (p_dest.nombre == "rey" or p_dest.color == pieza.color):
             return False
-
         if pieza.nombre == "peon":
             dir = -1 if pieza.color == "blanco" else 1
             if dc == 0 and df == dir and not p_dest:
@@ -402,12 +409,7 @@ class Juego:
                                     self.seleccionada.col,
                                 )
 
-                                # Guardar texto en el historial
-                                texto_mov = self.obtener_notacion(
-                                    f_orig, c_orig, fila, col, self.seleccionada
-                                )
-                                self.historial.append(texto_mov)
-
+                                # Detectar si es captura (normal o al paso)
                                 p_dest = next(
                                     (
                                         p
@@ -418,46 +420,57 @@ class Juego:
                                     ),
                                     None,
                                 )
+                                es_captura = p_dest is not None or (
+                                    self.seleccionada.nombre == "peon"
+                                    and abs(col - c_orig) == 1
+                                    and not p_dest
+                                )
+
+                                # Guardar en historial con notación corregida
+                                texto_mov = self.obtener_notacion_corta(
+                                    f_orig,
+                                    c_orig,
+                                    fila,
+                                    col,
+                                    self.seleccionada,
+                                    es_captura,
+                                )
+                                self.historial.append(texto_mov)
+
+                                # Lógica de captura al paso (eliminar peón enemigo)
                                 if (
                                     self.seleccionada.nombre == "peon"
-                                    and abs(col - self.seleccionada.col) == 1
+                                    and abs(col - c_orig) == 1
                                     and not p_dest
                                 ):
                                     p_dest = next(
                                         (
                                             p
                                             for p in self.piezas
-                                            if p.fila == self.seleccionada.fila
-                                            and p.col == col
+                                            if p.fila == f_orig and p.col == col
                                         ),
                                         None,
                                     )
 
+                                # Lógica de Enroque (mover la torre)
                                 if (
                                     self.seleccionada.nombre == "rey"
-                                    and abs(col - self.seleccionada.col) == 2
+                                    and abs(col - c_orig) == 2
                                 ):
-                                    col_torre_orig = (
-                                        7 if col > self.seleccionada.col else 0
-                                    )
-                                    col_torre_dest = (
-                                        col - 1
-                                        if col > self.seleccionada.col
-                                        else col + 1
-                                    )
+                                    col_t_orig = 7 if col > c_orig else 0
+                                    col_t_dest = col - 1 if col > c_orig else col + 1
                                     torre = next(
                                         (
                                             p
                                             for p in self.piezas
-                                            if p.fila == fila
-                                            and p.col == col_torre_orig
+                                            if p.fila == fila and p.col == col_t_orig
                                         ),
                                         None,
                                     )
                                     if torre:
                                         torre.col, torre.x, torre.ha_movido = (
-                                            col_torre_dest,
-                                            col_torre_dest * self.tablero.tam_cuadro,
+                                            col_t_dest,
+                                            col_t_dest * self.tablero.tam_cuadro,
                                             True,
                                         )
 
@@ -564,6 +577,10 @@ class Juego:
                         )
                     self.dibujando_flecha = False
 
+            # --- RENDERIZADO ---
+            # Mostramos solo los últimos 14 movimientos para no desbordar el panel lateral
+            historial_visible = self.historial[-14:]
+
             self.tablero.dibujar_tablero(
                 self.piezas,
                 self.seleccionada,
@@ -571,13 +588,14 @@ class Juego:
                 self.movs_legales,
                 self.ultimo_movimiento,
                 self.flechas,
-                self.historial,
+                historial_visible,
                 self.capturadas_blancas,
                 self.capturadas_negras,
                 self.tiempo_blanco,
                 self.tiempo_negro,
                 self.turno,
             )
+
             if self.resultado:
                 self.dibujar_cartel_resultado()
             pygame.display.flip()
